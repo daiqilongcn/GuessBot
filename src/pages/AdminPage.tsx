@@ -318,6 +318,8 @@ export default function AdminPage() {
                         className="w-full rounded-3xl px-7 py-6"
                         style={{
                             maxWidth: '520px',
+                            maxHeight: '90vh',
+                            overflowY: 'auto',
                             background: 'rgba(255,255,255,0.92)',
                             backdropFilter: 'blur(28px)',
                             border: '1.5px solid rgba(255,255,255,0.55)',
