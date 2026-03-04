@@ -79,17 +79,23 @@ export default function MainLayout({ children }: MainLayoutProps) {
             >
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
                     <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center"
+                        className="w-10 h-10 rounded-2xl flex items-center justify-center overflow-hidden"
                         style={{
                             background: 'linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%)',
                             boxShadow: '0 4px 18px rgba(167,139,250,0.50)',
                         }}
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M9 3H5C3.9 3 3 3.9 3 5v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6H5V5h4v4zm10-6h-4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6h-4V5h4v4zM9 13H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6H5v-4h4v4zm10-6h-4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6h-4v-4h4v4z"
-                                fill="white"
-                            />
+                        <svg viewBox="0 0 32 32" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+                            <line x1="16" y1="4" x2="16" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                            <circle cx="16" cy="3.5" r="1.5" fill="white" opacity="0.9" />
+                            <rect x="7" y="7" width="18" height="14" rx="4" fill="white" opacity="0.18" />
+                            <rect x="7" y="7" width="18" height="14" rx="4" fill="none" stroke="white" strokeWidth="1.2" opacity="0.75" />
+                            <circle cx="12" cy="13" r="2" fill="white" opacity="0.95" />
+                            <circle cx="20" cy="13" r="2" fill="white" opacity="0.95" />
+                            <circle cx="12.7" cy="12.3" r="0.6" fill="white" />
+                            <circle cx="20.7" cy="12.3" r="0.6" fill="white" />
+                            <text x="16" y="20" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="5.5" fontWeight="900" fill="white" opacity="0.95">?</text>
+                            <rect x="13" y="21" width="6" height="2" rx="1" fill="white" opacity="0.5" />
                         </svg>
                     </div>
                     <div className="flex flex-col leading-tight">

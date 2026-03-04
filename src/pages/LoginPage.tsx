@@ -5,15 +5,36 @@ interface LoginPageProps {
     onSuccess?: () => void;
 }
 
+type PageMode = 'signin' | 'signup' | 'forgot';
+
+// Google "G" logo SVG
+function GoogleIcon() {
+    return (
+        <svg width="20" height="20" viewBox="0 0 48 48" style={{ display: 'block', flexShrink: 0 }}>
+            <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.6h12.7c-.6 3-2.3 5.5-4.8 7.2v6h7.7c4.5-4.1 7-10.2 7-17.3z" />
+            <path fill="#34A853" d="M24 47c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.3 0-11.6-4.2-13.5-9.9H2.5v6.2C6.5 41.8 14.7 47 24 47z" />
+            <path fill="#FBBC05" d="M10.5 27.6c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6v-6.2H2.5C.9 15.5 0 19.6 0 24s.9 8.5 2.5 11.8l8-6.2z" />
+            <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.9 2.5 30.5 0 24 0 14.7 0 6.5 5.2 2.5 12.8l8 6.2c1.9-5.7 7.2-9.5 13.5-9.5z" />
+        </svg>
+    );
+}
+
 export default function LoginPage({ onSuccess }: LoginPageProps) {
-    const { signIn, signUp } = useAuth();
-    const [isSignUp, setIsSignUp] = useState(false);
+    const { signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
+    const [mode, setMode] = useState<PageMode>('signin');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [username, setUsername] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
+
+    const resetForm = (nextMode: PageMode) => {
+        setMode(nextMode);
+        setError('');
+        setSuccessMsg('');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -22,25 +43,61 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
         setLoading(true);
 
         try {
-            if (isSignUp) {
+            if (mode === 'signup') {
                 const { error: err } = await signUp(email, password, username);
-                if (err) {
-                    setError(err.message);
-                } else {
-                    setSuccessMsg('Sign up successful. Check your email for verification.');
-                }
-            } else {
+                if (err) setError(err.message);
+                else setSuccessMsg('✅ Account created! Please check your email to verify, then sign in.');
+            } else if (mode === 'signin') {
                 const { error: err } = await signIn(email, password);
-                if (err) {
-                    setError(err.message);
-                } else {
-                    onSuccess?.();
-                }
+                if (err) setError(err.message);
+                else onSuccess?.();
+            } else if (mode === 'forgot') {
+                const { error: err } = await resetPassword(email);
+                if (err) setError(err.message);
+                else setSuccessMsg('📬 Reset link sent! Please check your email inbox (and spam folder).');
             }
         } finally {
             setLoading(false);
         }
     };
+
+    const handleGoogleSignIn = async () => {
+        setGoogleLoading(true);
+        setError('');
+        const { error: err } = await signInWithGoogle();
+        if (err) {
+            setError(err.message);
+            setGoogleLoading(false);
+        }
+        // If no error, Supabase will redirect the browser — no need to setLoading(false)
+    };
+
+    const inputStyle: React.CSSProperties = {
+        fontFamily: "'Nunito', sans-serif",
+        fontWeight: 600,
+        fontSize: '0.9rem',
+        color: '#4a3f6b',
+        background: 'rgba(255,255,255,0.60)',
+        border: '1.5px solid rgba(255,255,255,0.80)',
+        caretColor: '#a78bfa',
+    };
+
+    const labelStyle: React.CSSProperties = {
+        fontFamily: "'Nunito', sans-serif",
+        fontWeight: 700,
+        fontSize: '0.82rem',
+        color: '#6b5fa0',
+    };
+
+    const modeTitle =
+        mode === 'signup' ? 'Create Account 🚀' :
+            mode === 'forgot' ? 'Reset Password 🔑' :
+                'Welcome Back 👋';
+
+    const submitLabel =
+        mode === 'signup' ? (loading ? 'Creating...' : 'Create Account') :
+            mode === 'forgot' ? (loading ? 'Sending...' : 'Send Reset Link') :
+                (loading ? 'Signing in...' : 'Sign In');
 
     return (
         <div
@@ -51,19 +108,31 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             }}
         >
             <div className="w-full relative" style={{ maxWidth: '420px' }}>
+                {/* Logo */}
                 <div className="flex flex-col items-center mb-8">
                     <div
-                        className="w-16 h-16 rounded-3xl flex items-center justify-center mb-4"
+                        className="w-16 h-16 rounded-3xl flex items-center justify-center mb-4 overflow-hidden"
                         style={{
                             background: 'linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%)',
                             boxShadow: '0 8px 32px rgba(167,139,250,0.50)',
                         }}
                     >
-                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                            <path
-                                d="M9 3H5C3.9 3 3 3.9 3 5v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6H5V5h4v4zm10-6h-4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 6h-4V5h4v4zM9 13H5c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6H5v-4h4v4zm10-6h-4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2zm0 6h-4v-4h4v4z"
-                                fill="white"
-                            />
+                        <svg viewBox="0 0 32 32" width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+                            {/* Antenna */}
+                            <line x1="16" y1="4" x2="16" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                            <circle cx="16" cy="3.5" r="1.5" fill="white" opacity="0.9" />
+                            {/* Head */}
+                            <rect x="7" y="7" width="18" height="14" rx="4" fill="white" opacity="0.18" />
+                            <rect x="7" y="7" width="18" height="14" rx="4" fill="none" stroke="white" strokeWidth="1.2" opacity="0.75" />
+                            {/* Eyes */}
+                            <circle cx="12" cy="13" r="2" fill="white" opacity="0.95" />
+                            <circle cx="20" cy="13" r="2" fill="white" opacity="0.95" />
+                            <circle cx="12.7" cy="12.3" r="0.6" fill="white" />
+                            <circle cx="20.7" cy="12.3" r="0.6" fill="white" />
+                            {/* Question mark mouth */}
+                            <text x="16" y="20" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="5.5" fontWeight="900" fill="white" opacity="0.95">?</text>
+                            {/* Neck */}
+                            <rect x="13" y="21" width="6" height="2" rx="1" fill="white" opacity="0.5" />
                         </svg>
                     </div>
                     <span
@@ -91,6 +160,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                     </span>
                 </div>
 
+                {/* Card */}
                 <div
                     className="rounded-3xl px-8 py-8"
                     style={{
@@ -101,86 +171,143 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                         boxShadow: '0 8px 48px 0 rgba(180, 160, 220, 0.18), 0 2px 16px 0 rgba(180, 160, 220, 0.10)',
                     }}
                 >
-                    <div
-                        className="flex rounded-2xl p-1 mb-6"
-                        style={{
-                            background: 'rgba(255,255,255,0.35)',
-                            border: '1px solid rgba(255,255,255,0.50)',
-                        }}
-                    >
-                        {[
-                            { key: false, label: 'Sign In' },
-                            { key: true, label: 'Sign Up' },
-                        ].map((tab) => (
-                            <button
-                                key={String(tab.key)}
-                                onClick={() => {
-                                    setIsSignUp(tab.key);
-                                    setError('');
-                                    setSuccessMsg('');
-                                }}
-                                className="flex-1 py-2.5 rounded-xl transition-all duration-200"
-                                style={{
-                                    fontFamily: "'Nunito', sans-serif",
-                                    fontWeight: 700,
-                                    fontSize: '0.9rem',
-                                    color: isSignUp === tab.key ? '#fff' : '#6b5fa0',
-                                    background:
-                                        isSignUp === tab.key
-                                            ? 'linear-gradient(135deg, #a78bfa 0%, #818cf8 100%)'
-                                            : 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    boxShadow: isSignUp === tab.key ? '0 4px 16px rgba(167,139,250,0.40)' : 'none',
-                                }}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                        {isSignUp && (
-                            <div className="flex flex-col gap-1.5">
-                                <label
+                    {/* Tab switcher — only for signin / signup */}
+                    {mode !== 'forgot' && (
+                        <div
+                            className="flex rounded-2xl p-1 mb-6"
+                            style={{
+                                background: 'rgba(255,255,255,0.35)',
+                                border: '1px solid rgba(255,255,255,0.50)',
+                            }}
+                        >
+                            {([
+                                { key: 'signin', label: 'Sign In' },
+                                { key: 'signup', label: 'Sign Up' },
+                            ] as const).map((tab) => (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => resetForm(tab.key)}
+                                    className="flex-1 py-2.5 rounded-xl transition-all duration-200"
                                     style={{
                                         fontFamily: "'Nunito', sans-serif",
                                         fontWeight: 700,
-                                        fontSize: '0.82rem',
-                                        color: '#6b5fa0',
+                                        fontSize: '0.9rem',
+                                        color: mode === tab.key ? '#fff' : '#6b5fa0',
+                                        background:
+                                            mode === tab.key
+                                                ? 'linear-gradient(135deg, #a78bfa 0%, #818cf8 100%)'
+                                                : 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        boxShadow: mode === tab.key ? '0 4px 16px rgba(167,139,250,0.40)' : 'none',
                                     }}
                                 >
-                                    👤 Username
-                                </label>
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Forgot password header */}
+                    {mode === 'forgot' && (
+                        <div className="mb-5">
+                            <button
+                                onClick={() => resetForm('signin')}
+                                style={{
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: '0.8rem',
+                                    color: '#9b8cc4',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    marginBottom: '12px',
+                                    padding: 0,
+                                }}
+                            >
+                                ← Back to Sign In
+                            </button>
+                            <p
+                                style={{
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 800,
+                                    fontSize: '1.1rem',
+                                    color: '#4a3f6b',
+                                    marginBottom: '4px',
+                                }}
+                            >
+                                {modeTitle}
+                            </p>
+                            <p style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: '0.80rem', color: '#9b8cc4' }}>
+                                Enter your email and we'll send you a password reset link.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Google OAuth button — only shown on signin / signup */}
+                    {mode !== 'forgot' && (
+                        <>
+                            <button
+                                id="google-signin-btn"
+                                onClick={handleGoogleSignIn}
+                                disabled={googleLoading}
+                                className="w-full py-3 rounded-2xl transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-3"
+                                style={{
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: '0.92rem',
+                                    color: '#3c3558',
+                                    background: 'rgba(255,255,255,0.82)',
+                                    border: '1.5px solid rgba(200,180,240,0.50)',
+                                    boxShadow: '0 2px 12px rgba(167,139,250,0.12)',
+                                    cursor: googleLoading ? 'not-allowed' : 'pointer',
+                                    opacity: googleLoading ? 0.7 : 1,
+                                    marginBottom: '4px',
+                                }}
+                            >
+                                {googleLoading ? (
+                                    <div
+                                        className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
+                                        style={{ borderColor: '#a78bfa', borderTopColor: 'transparent' }}
+                                    />
+                                ) : (
+                                    <GoogleIcon />
+                                )}
+                                {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+                            </button>
+
+                            {/* Divider */}
+                            <div className="flex items-center gap-3 my-4">
+                                <div style={{ flex: 1, height: '1px', background: 'rgba(167,139,250,0.20)' }} />
+                                <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: 600, fontSize: '0.75rem', color: '#b8aad8' }}>
+                                    or continue with email
+                                </span>
+                                <div style={{ flex: 1, height: '1px', background: 'rgba(167,139,250,0.20)' }} />
+                            </div>
+                        </>
+                    )}
+
+                    {/* Form */}
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                        {mode === 'signup' && (
+                            <div className="flex flex-col gap-1.5">
+                                <label style={labelStyle}>👤 Username</label>
                                 <input
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     placeholder="Enter username"
                                     className="w-full px-4 py-3 outline-none rounded-2xl"
-                                    style={{
-                                        fontFamily: "'Nunito', sans-serif",
-                                        fontWeight: 600,
-                                        fontSize: '0.9rem',
-                                        color: '#4a3f6b',
-                                        background: 'rgba(255,255,255,0.60)',
-                                        border: '1.5px solid rgba(255,255,255,0.80)',
-                                        caretColor: '#a78bfa',
-                                    }}
+                                    style={inputStyle}
                                 />
                             </div>
                         )}
+
                         <div className="flex flex-col gap-1.5">
-                            <label
-                                style={{
-                                    fontFamily: "'Nunito', sans-serif",
-                                    fontWeight: 700,
-                                    fontSize: '0.82rem',
-                                    color: '#6b5fa0',
-                                }}
-                            >
-                                📧 Email
-                            </label>
+                            <label style={labelStyle}>📧 Email</label>
                             <input
                                 type="email"
                                 value={email}
@@ -188,47 +315,47 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                                 placeholder="Enter email address"
                                 required
                                 className="w-full px-4 py-3 outline-none rounded-2xl"
-                                style={{
-                                    fontFamily: "'Nunito', sans-serif",
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    color: '#4a3f6b',
-                                    background: 'rgba(255,255,255,0.60)',
-                                    border: '1.5px solid rgba(255,255,255,0.80)',
-                                    caretColor: '#a78bfa',
-                                }}
+                                style={inputStyle}
                             />
                         </div>
-                        <div className="flex flex-col gap-1.5">
-                            <label
-                                style={{
-                                    fontFamily: "'Nunito', sans-serif",
-                                    fontWeight: 700,
-                                    fontSize: '0.82rem',
-                                    color: '#6b5fa0',
-                                }}
-                            >
-                                🔐 Password
-                            </label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder={isSignUp ? 'Set password (at least 6 chars)' : 'Enter password'}
-                                required
-                                minLength={6}
-                                className="w-full px-4 py-3 outline-none rounded-2xl"
-                                style={{
-                                    fontFamily: "'Nunito', sans-serif",
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    color: '#4a3f6b',
-                                    background: 'rgba(255,255,255,0.60)',
-                                    border: '1.5px solid rgba(255,255,255,0.80)',
-                                    caretColor: '#a78bfa',
-                                }}
-                            />
-                        </div>
+
+                        {mode !== 'forgot' && (
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                    <label style={labelStyle}>🔐 Password</label>
+                                    {mode === 'signin' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => resetForm('forgot')}
+                                            style={{
+                                                fontFamily: "'Nunito', sans-serif",
+                                                fontWeight: 700,
+                                                fontSize: '0.75rem',
+                                                color: '#a78bfa',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                padding: 0,
+                                                textDecoration: 'underline',
+                                                textUnderlineOffset: '2px',
+                                            }}
+                                        >
+                                            Forgot password?
+                                        </button>
+                                    )}
+                                </div>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder={mode === 'signup' ? 'Set password (at least 6 chars)' : 'Enter password'}
+                                    required
+                                    minLength={6}
+                                    className="w-full px-4 py-3 outline-none rounded-2xl"
+                                    style={inputStyle}
+                                />
+                            </div>
+                        )}
 
                         {error && (
                             <div
@@ -263,6 +390,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                         )}
 
                         <button
+                            id="email-submit-btn"
                             type="submit"
                             disabled={loading}
                             className="w-full py-3.5 rounded-2xl transition-all duration-200 active:scale-[0.98]"
@@ -278,7 +406,7 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                                 opacity: loading ? 0.7 : 1,
                             }}
                         >
-                            {loading ? 'Processing...' : isSignUp ? 'Create account 🚀' : 'Sign in ✅'}
+                            {submitLabel}
                         </button>
                     </form>
                 </div>

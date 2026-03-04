@@ -15,19 +15,25 @@ const PROVIDER_PRESETS = [
         name: 'OpenAI',
         base_url: 'https://api.openai.com/v1',
         api_format: 'openai',
-        models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1', 'o1-mini'],
+        models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o3-mini', 'o4-mini'],
     },
     {
         name: 'Anthropic',
         base_url: 'https://api.anthropic.com',
         api_format: 'anthropic',
-        models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'],
+        models: ['claude-sonnet-4-20250514', 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'],
     },
     {
         name: 'Google Gemini',
         base_url: 'https://generativelanguage.googleapis.com/v1beta',
+        api_format: 'gemini',
+        models: ['gemini-2.5-pro-preview-06-05', 'gemini-2.5-flash-preview-05-20', 'gemini-2.0-flash', 'gemini-2.0-flash-lite'],
+    },
+    {
+        name: 'Google Gemini (OpenAI Compatible)',
+        base_url: 'https://generativelanguage.googleapis.com/v1beta/openai',
         api_format: 'openai',
-        models: ['gemini-2.0-flash', 'gemini-2.0-pro', 'gemini-1.5-pro'],
+        models: ['gemini-2.5-pro-preview-06-05', 'gemini-2.5-flash-preview-05-20', 'gemini-2.0-flash'],
     },
     {
         name: 'DeepSeek',
@@ -39,7 +45,7 @@ const PROVIDER_PRESETS = [
         name: 'Qwen (DashScope)',
         base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
         api_format: 'openai',
-        models: ['qwen-max', 'qwen-plus', 'qwen-turbo'],
+        models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwq-plus'],
     },
     {
         name: 'Doubao',
@@ -59,6 +65,10 @@ export default function AdminPage() {
     const [newModelName, setNewModelName] = useState('');
     const [addingModelTo, setAddingModelTo] = useState<string | null>(null);
 
+    // For editing model display name inline
+    const [editingModelId, setEditingModelId] = useState<string | null>(null);
+    const [editingModelName, setEditingModelName] = useState('');
+
     const [selectedPreset, setSelectedPreset] = useState(0);
     const [newProvider, setNewProvider] = useState({
         name: '',
@@ -66,6 +76,11 @@ export default function AdminPage() {
         api_key: '',
         api_format: 'openai',
     });
+
+    // Track which preset models are selected & custom models added during provider creation
+    const [selectedPresetModels, setSelectedPresetModels] = useState<Set<string>>(new Set());
+    const [customModelsToAdd, setCustomModelsToAdd] = useState<{ model_id: string; display_name: string }[]>([]);
+    const [customModelInput, setCustomModelInput] = useState('');
 
     useEffect(() => {
         void fetchProviders();
@@ -111,18 +126,34 @@ export default function AdminPage() {
             return;
         }
 
-        const preset = PROVIDER_PRESETS[selectedPreset];
-        if (provider && preset.models.length > 0) {
-            const models = preset.models.map((modelId) => ({
-                provider_id: provider.id,
-                model_id: modelId,
-                display_name: modelId,
-            }));
-            await supabase.from('models').insert(models);
+        if (provider) {
+            // Collect selected preset models
+            const modelsToInsert: { provider_id: string; model_id: string; display_name: string }[] = [];
+            for (const modelId of selectedPresetModels) {
+                modelsToInsert.push({
+                    provider_id: provider.id,
+                    model_id: modelId,
+                    display_name: modelId,
+                });
+            }
+            // Add custom models
+            for (const cm of customModelsToAdd) {
+                modelsToInsert.push({
+                    provider_id: provider.id,
+                    model_id: cm.model_id,
+                    display_name: cm.display_name || cm.model_id,
+                });
+            }
+            if (modelsToInsert.length > 0) {
+                await supabase.from('models').insert(modelsToInsert);
+            }
         }
 
         setShowAddProvider(false);
         setNewProvider({ name: '', base_url: '', api_key: '', api_format: 'openai' });
+        setSelectedPresetModels(new Set());
+        setCustomModelsToAdd([]);
+        setCustomModelInput('');
         void fetchProviders();
     };
 
@@ -156,6 +187,23 @@ export default function AdminPage() {
         setNewModelId('');
         setNewModelName('');
         setAddingModelTo(null);
+        void fetchProviders();
+    };
+
+    const handleRenameModel = async (modelId: string) => {
+        if (!editingModelName.trim()) {
+            setEditingModelId(null);
+            return;
+        }
+        const { error } = await supabase
+            .from('models')
+            .update({ display_name: editingModelName.trim() })
+            .eq('id', modelId);
+        if (error) {
+            alert(`Failed to rename model: ${error.message}`);
+        }
+        setEditingModelId(null);
+        setEditingModelName('');
         void fetchProviders();
     };
 
@@ -240,6 +288,9 @@ export default function AdminPage() {
                             api_key: '',
                             api_format: preset.api_format,
                         });
+                        setSelectedPresetModels(new Set(preset.models));
+                        setCustomModelsToAdd([]);
+                        setCustomModelInput('');
                     }}
                     className="px-5 py-2.5 rounded-2xl transition-all duration-200 active:scale-95"
                     style={{
@@ -288,9 +339,12 @@ export default function AdminPage() {
                                             setNewProvider({
                                                 name: preset.name,
                                                 base_url: preset.base_url,
-                                                api_key: '',
+                                                api_key: newProvider.api_key,
                                                 api_format: preset.api_format,
                                             });
+                                            setSelectedPresetModels(new Set(preset.models));
+                                            setCustomModelsToAdd([]);
+                                            setCustomModelInput('');
                                         }}
                                         className="px-3 py-1.5 rounded-xl transition-all duration-150"
                                         style={{
@@ -350,9 +404,11 @@ export default function AdminPage() {
                                 >
                                     <option value="openai">OpenAI compatible</option>
                                     <option value="anthropic">Anthropic format</option>
+                                    <option value="gemini">Google Gemini native</option>
                                 </select>
                             </div>
 
+                            {/* Preset models - toggleable */}
                             {PROVIDER_PRESETS[selectedPreset].models.length > 0 && (
                                 <div
                                     className="px-4 py-3 rounded-xl"
@@ -361,25 +417,158 @@ export default function AdminPage() {
                                         border: '1px solid rgba(167,139,250,0.15)',
                                     }}
                                 >
-                                    <p style={{ ...labelStyle, marginBottom: '6px' }}>📦 Preset models to add</p>
+                                    <div className="flex items-center justify-between" style={{ marginBottom: '6px' }}>
+                                        <p style={{ ...labelStyle, marginBottom: 0 }}>📦 Preset models (click to toggle)</p>
+                                        <button
+                                            onClick={() => {
+                                                const preset = PROVIDER_PRESETS[selectedPreset];
+                                                if (selectedPresetModels.size === preset.models.length) {
+                                                    setSelectedPresetModels(new Set());
+                                                } else {
+                                                    setSelectedPresetModels(new Set(preset.models));
+                                                }
+                                            }}
+                                            style={{
+                                                fontWeight: 700,
+                                                fontSize: '0.70rem',
+                                                color: '#a78bfa',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                textDecoration: 'underline',
+                                            }}
+                                        >
+                                            {selectedPresetModels.size === PROVIDER_PRESETS[selectedPreset].models.length ? 'Deselect all' : 'Select all'}
+                                        </button>
+                                    </div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {PROVIDER_PRESETS[selectedPreset].models.map((modelId) => (
-                                            <span
-                                                key={modelId}
-                                                className="px-2 py-1 rounded-lg"
-                                                style={{
-                                                    fontSize: '0.72rem',
-                                                    fontWeight: 600,
-                                                    color: '#6b5fa0',
-                                                    background: 'rgba(255,255,255,0.70)',
-                                                }}
-                                            >
-                                                {modelId}
-                                            </span>
-                                        ))}
+                                        {PROVIDER_PRESETS[selectedPreset].models.map((modelId) => {
+                                            const isSelected = selectedPresetModels.has(modelId);
+                                            return (
+                                                <button
+                                                    key={modelId}
+                                                    onClick={() => {
+                                                        const next = new Set(selectedPresetModels);
+                                                        if (isSelected) next.delete(modelId);
+                                                        else next.add(modelId);
+                                                        setSelectedPresetModels(next);
+                                                    }}
+                                                    className="px-2.5 py-1 rounded-lg transition-all duration-150"
+                                                    style={{
+                                                        fontSize: '0.72rem',
+                                                        fontWeight: 600,
+                                                        color: isSelected ? '#fff' : '#6b5fa0',
+                                                        background: isSelected
+                                                            ? 'linear-gradient(135deg, #a78bfa, #818cf8)'
+                                                            : 'rgba(255,255,255,0.70)',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        opacity: isSelected ? 1 : 0.6,
+                                                    }}
+                                                >
+                                                    {isSelected ? '✓ ' : ''}{modelId}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
+
+                            {/* Custom model input */}
+                            <div
+                                className="px-4 py-3 rounded-xl"
+                                style={{
+                                    background: 'rgba(96,165,250,0.06)',
+                                    border: '1px solid rgba(96,165,250,0.15)',
+                                }}
+                            >
+                                <p style={{ ...labelStyle, marginBottom: '8px' }}>✏️ Add custom models</p>
+                                <div className="flex gap-2 mb-2">
+                                    <input
+                                        style={{ ...inputStyle, flex: 1 }}
+                                        value={customModelInput}
+                                        onChange={(e) => setCustomModelInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && customModelInput.trim()) {
+                                                e.preventDefault();
+                                                setCustomModelsToAdd([
+                                                    ...customModelsToAdd,
+                                                    { model_id: customModelInput.trim(), display_name: '' },
+                                                ]);
+                                                setCustomModelInput('');
+                                            }
+                                        }}
+                                        placeholder="Type model ID and press Enter (e.g. gpt-4.1-2025-04-14)"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            if (customModelInput.trim()) {
+                                                setCustomModelsToAdd([
+                                                    ...customModelsToAdd,
+                                                    { model_id: customModelInput.trim(), display_name: '' },
+                                                ]);
+                                                setCustomModelInput('');
+                                            }
+                                        }}
+                                        className="px-3 rounded-xl shrink-0"
+                                        style={{
+                                            fontWeight: 700,
+                                            fontSize: '0.78rem',
+                                            color: '#fff',
+                                            background: 'linear-gradient(135deg, #60a5fa, #818cf8)',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        + Add
+                                    </button>
+                                </div>
+                                {customModelsToAdd.length > 0 && (
+                                    <div className="flex flex-col gap-1.5">
+                                        {customModelsToAdd.map((cm, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                                                style={{ background: 'rgba(255,255,255,0.60)' }}
+                                            >
+                                                <span style={{ fontWeight: 700, fontSize: '0.75rem', color: '#4a3f6b', flex: 1 }}>
+                                                    {cm.model_id}
+                                                </span>
+                                                <input
+                                                    style={{
+                                                        ...inputStyle,
+                                                        width: '140px',
+                                                        padding: '4px 8px',
+                                                        fontSize: '0.72rem',
+                                                    }}
+                                                    value={cm.display_name}
+                                                    onChange={(e) => {
+                                                        const updated = [...customModelsToAdd];
+                                                        updated[idx] = { ...updated[idx], display_name: e.target.value };
+                                                        setCustomModelsToAdd(updated);
+                                                    }}
+                                                    placeholder="Display name (optional)"
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        setCustomModelsToAdd(customModelsToAdd.filter((_, i) => i !== idx));
+                                                    }}
+                                                    style={{
+                                                        fontWeight: 700,
+                                                        fontSize: '0.72rem',
+                                                        color: '#e11d48',
+                                                        background: 'none',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="flex gap-3 mt-5">
@@ -595,18 +784,76 @@ export default function AdminPage() {
                                             }}
                                         >
                                             <span className="w-2 h-2 rounded-full" style={{ background: model.is_active ? '#34d399' : '#d1d5db' }} />
-                                            <span
-                                                style={{
-                                                    fontWeight: 700,
-                                                    fontSize: '0.78rem',
-                                                    color: model.is_active ? '#4a3f6b' : '#9b8cc4',
-                                                }}
-                                            >
-                                                {model.display_name}
-                                            </span>
+                                            {editingModelId === model.id ? (
+                                                <form
+                                                    onSubmit={(e) => {
+                                                        e.preventDefault();
+                                                        void handleRenameModel(model.id);
+                                                    }}
+                                                    className="flex items-center gap-1"
+                                                >
+                                                    <input
+                                                        autoFocus
+                                                        value={editingModelName}
+                                                        onChange={(e) => setEditingModelName(e.target.value)}
+                                                        onBlur={() => void handleRenameModel(model.id)}
+                                                        style={{
+                                                            fontWeight: 700,
+                                                            fontSize: '0.78rem',
+                                                            color: '#4a3f6b',
+                                                            background: 'rgba(255,255,255,0.80)',
+                                                            border: '1.5px solid #a78bfa',
+                                                            borderRadius: '8px',
+                                                            padding: '2px 8px',
+                                                            outline: 'none',
+                                                            width: '120px',
+                                                        }}
+                                                    />
+                                                </form>
+                                            ) : (
+                                                <div className="flex flex-col">
+                                                    <span
+                                                        style={{
+                                                            fontWeight: 700,
+                                                            fontSize: '0.78rem',
+                                                            color: model.is_active ? '#4a3f6b' : '#9b8cc4',
+                                                            cursor: 'pointer',
+                                                        }}
+                                                        title="Click to rename"
+                                                        onClick={() => {
+                                                            setEditingModelId(model.id);
+                                                            setEditingModelName(model.display_name);
+                                                        }}
+                                                    >
+                                                        {model.display_name}
+                                                    </span>
+                                                    {model.display_name !== model.model_id && (
+                                                        <span style={{ fontWeight: 500, fontSize: '0.62rem', color: '#b8aad8' }}>
+                                                            {model.model_id}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                             <span style={{ fontWeight: 600, fontSize: '0.68rem', color: '#b8aad8' }}>
                                                 ELO: {model.elo_rating}
                                             </span>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingModelId(model.id);
+                                                    setEditingModelName(model.display_name);
+                                                }}
+                                                title="Rename"
+                                                style={{
+                                                    fontWeight: 600,
+                                                    fontSize: '0.72rem',
+                                                    color: '#a78bfa',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                ✏️
+                                            </button>
                                             <button
                                                 onClick={() => handleToggleModel(model.id, model.is_active)}
                                                 style={{
