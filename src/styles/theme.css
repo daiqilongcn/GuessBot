@@ -1,0 +1,48 @@
+/* Custom Theme Variables for GuessBot */
+
+:root {
+  /* Primary Colors */
+  --color-primary-purple: #a78bfa;
+  --color-primary-blue: #60a5fa;
+  --color-primary-indigo: #818cf8;
+
+  /* Accent Colors */
+  --color-accent-green: #34d399;
+  --color-accent-pink: #f472b6;
+  --color-accent-yellow: #fbbf24;
+
+  /* Background Colors */
+  --color-bg-gradient-start: #fce4ec;
+  --color-bg-gradient-mid: #ede7f6;
+  --color-bg-gradient-end: #e3f2fd;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.22);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 8px 48px 0 rgba(180, 160, 220, 0.13);
+
+  /* Text Colors */
+  --text-primary: #4a3f6b;
+  --text-secondary: #6b5fa0;
+  --text-muted: #9b8cc4;
+  --text-light: #b8aad8;
+
+  /* Animation Durations */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+}
+
+/* Dark mode support (future) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg: rgba(30, 30, 40, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.1);
+  }
+}
