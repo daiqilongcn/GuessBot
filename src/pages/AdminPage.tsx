@@ -88,27 +88,46 @@ export default function AdminPage() {
 
     const fetchProviders = async () => {
         setLoading(true);
-        const { data: providerData } = await supabase.from('providers').select('*').order('created_at', { ascending: true });
+        try {
+            const { data: providerData, error: providerError } = await supabase
+                .from('providers')
+                .select('*')
+                .order('created_at', { ascending: true });
 
-        if (providerData) {
-            const withModels: ProviderWithModels[] = [];
-            for (const provider of providerData) {
-                const { data: modelData } = await supabase
-                    .from('models')
-                    .select('*')
-                    .eq('provider_id', provider.id)
-                    .order('created_at', { ascending: true });
-
-                withModels.push({ ...provider, models: modelData || [] });
+            if (providerError) {
+                console.error('Failed to fetch providers:', providerError);
+                setProviders([]);
+                return;
             }
-            setProviders(withModels);
-        }
 
-        setLoading(false);
+            if (providerData) {
+                const withModels: ProviderWithModels[] = [];
+                for (const provider of providerData) {
+                    const { data: modelData } = await supabase
+                        .from('models')
+                        .select('*')
+                        .eq('provider_id', provider.id)
+                        .order('created_at', { ascending: true });
+
+                    withModels.push({ ...provider, models: modelData || [] });
+                }
+                setProviders(withModels);
+            } else {
+                setProviders([]);
+            }
+        } catch (err) {
+            console.error('Error in fetchProviders:', err);
+            setProviders([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAddProvider = async () => {
-        if (!newProvider.name || !newProvider.base_url || !newProvider.api_key) return;
+        if (!newProvider.name || !newProvider.base_url || !newProvider.api_key) {
+            alert('Please fill in provider name, base URL, and API key.');
+            return;
+        }
 
         const { data: provider, error } = await supabase
             .from('providers')
@@ -145,7 +164,10 @@ export default function AdminPage() {
                 });
             }
             if (modelsToInsert.length > 0) {
-                await supabase.from('models').insert(modelsToInsert);
+                const { error: modelError } = await supabase.from('models').insert(modelsToInsert);
+                if (modelError) {
+                    alert(`Provider added but failed to add models: ${modelError.message}`);
+                }
             }
         }
 
