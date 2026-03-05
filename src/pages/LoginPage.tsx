@@ -247,8 +247,9 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
                         </div>
                     )}
 
-                    {/* Google OAuth button — only shown on signin / signup */}
-                    {mode !== 'forgot' && (
+                    {/* Google OAuth button — hidden until Google provider is configured in Supabase */}
+                    {/* To re-enable: change false to (mode !== 'forgot') */}
+                    {false && mode !== 'forgot' && (
                         <>
                             <button
                                 id="google-signin-btn"
