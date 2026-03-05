@@ -10,8 +10,26 @@ export default function ResetPasswordPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [sessionReady, setSessionReady] = useState(false);
+    const [linkError, setLinkError] = useState('');
 
     useEffect(() => {
+        // Check URL hash for error fragments (e.g. expired OTP, access_denied)
+        const hash = window.location.hash;
+        if (hash) {
+            const params = new URLSearchParams(hash.substring(1));
+            const errorDescription = params.get('error_description');
+            const errorCode = params.get('error_code');
+            if (errorDescription || errorCode) {
+                const msg = errorDescription
+                    ? decodeURIComponent(errorDescription.replace(/\+/g, ' '))
+                    : 'The reset link is invalid or has expired.';
+                setLinkError(msg);
+                // Clear the hash from the URL to keep it clean
+                window.history.replaceState(null, '', window.location.pathname);
+                return; // Don't set up the listener if we already know the link is bad
+            }
+        }
+
         // Supabase will automatically pick up the token from the URL hash
         // and establish a session. We listen for that event.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -151,7 +169,55 @@ export default function ResetPasswordPage() {
                         Enter your new password below.
                     </p>
 
-                    {success ? (
+                    {linkError ? (
+                        <div
+                            className="px-4 py-5 rounded-xl text-center"
+                            style={{
+                                background: 'rgba(251,146,60,0.12)',
+                                border: '1px solid rgba(251,146,60,0.3)',
+                            }}
+                        >
+                            <div style={{ fontSize: '2rem', marginBottom: '12px' }}>⏰</div>
+                            <p
+                                style={{
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: '0.92rem',
+                                    color: '#c2410c',
+                                    marginBottom: '8px',
+                                }}
+                            >
+                                Reset Link Expired
+                            </p>
+                            <p
+                                style={{
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 600,
+                                    fontSize: '0.8rem',
+                                    color: '#9b8cc4',
+                                    marginBottom: '16px',
+                                }}
+                            >
+                                {linkError}
+                            </p>
+                            <button
+                                onClick={() => navigate('/login')}
+                                className="w-full py-3 rounded-2xl transition-all duration-200 active:scale-[0.98]"
+                                style={{
+                                    fontFamily: "'Nunito', sans-serif",
+                                    fontWeight: 800,
+                                    fontSize: '0.9rem',
+                                    background: 'linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #60a5fa 100%)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    boxShadow: '0 4px 20px rgba(167,139,250,0.45)',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                Request a New Reset Link →
+                            </button>
+                        </div>
+                    ) : success ? (
                         <div
                             className="px-4 py-4 rounded-xl text-center"
                             style={{

@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import MainLayout from './components/MainLayout';
 import BattlePage from './pages/BattlePage';
@@ -47,45 +47,92 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
 }
 
+/**
+ * Intercepts Supabase auth hash fragments at any route and redirects
+ * password-recovery related fragments to /reset-password.
+ * 
+ * This handles multiple scenarios:
+ * 1. Supabase redirects to Site URL (root) instead of our specific redirectTo
+ *    because the redirect URL is not in the allow list
+ * 2. OTP expired errors from password reset links
+ * 3. Successful password recovery tokens that arrive at the wrong route
+ */
+function PasswordResetRedirector({ children }: { children: React.ReactNode }) {
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    useEffect(() => {
+        // Only intercept if we're NOT already on /reset-password
+        if (location.pathname === '/reset-password') return;
+
+        const hash = window.location.hash;
+        if (!hash) return;
+
+        const params = new URLSearchParams(hash.substring(1));
+
+        // Case 1: Successful recovery token - redirect with the hash intact
+        const type = params.get('type');
+        if (type === 'recovery') {
+            // Navigate to /reset-password and preserve the hash for Supabase to pick up
+            navigate(`/reset-password${hash}`, { replace: true });
+            return;
+        }
+
+        // Case 2: Error from an expired/invalid password reset link
+        const error = params.get('error');
+        const errorCode = params.get('error_code');
+        const errorDescription = params.get('error_description');
+        if (error && (errorCode === 'otp_expired' || errorDescription?.includes('expired'))) {
+            // Redirect to reset-password page with error info
+            navigate(`/reset-password${hash}`, { replace: true });
+            return;
+        }
+    }, [location.pathname, navigate]);
+
+    return <>{children}</>;
+}
+
 function AppRoutes() {
     const navigate = useNavigate();
 
     return (
-        <Routes>
-            <Route path="/login" element={<LoginPage onSuccess={() => navigate('/')} />} />
-            <Route
-                path="/"
-                element={
-                    <AuthGuard>
-                        <MainLayout>
-                            <BattlePage />
-                        </MainLayout>
-                    </AuthGuard>
-                }
-            />
-            <Route
-                path="/leaderboard"
-                element={
-                    <AuthGuard>
-                        <MainLayout>
-                            <LeaderboardPage />
-                        </MainLayout>
-                    </AuthGuard>
-                }
-            />
-            <Route
-                path="/admin"
-                element={
-                    <AuthGuard>
-                        <MainLayout>
-                            <AdminPage />
-                        </MainLayout>
-                    </AuthGuard>
-                }
-            />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <PasswordResetRedirector>
+            <Routes>
+                <Route path="/login" element={<LoginPage onSuccess={() => navigate('/')} />} />
+                <Route
+                    path="/"
+                    element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <BattlePage />
+                            </MainLayout>
+                        </AuthGuard>
+                    }
+                />
+                <Route
+                    path="/leaderboard"
+                    element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <LeaderboardPage />
+                            </MainLayout>
+                        </AuthGuard>
+                    }
+                />
+                <Route
+                    path="/admin"
+                    element={
+                        <AuthGuard>
+                            <MainLayout>
+                                <AdminPage />
+                            </MainLayout>
+                        </AuthGuard>
+                    }
+                />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </PasswordResetRedirector>
     );
 }
 
