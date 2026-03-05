@@ -34,31 +34,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session: s } }) => {
-            setSession(s);
-            setUser(s?.user ?? null);
-            if (s?.user) {
-                fetchProfile(s.user.id);
-            }
+        // Safety timeout: if loading isn't resolved in 10s, force it
+        const timeout = setTimeout(() => {
             setLoading(false);
-        });
+        }, 10000);
 
-        // Listen for auth changes
+        // Use onAuthStateChange with INITIAL_SESSION event (Supabase recommended pattern)
+        // This avoids the race condition between getSession() and onAuthStateChange()
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, s) => {
+            async (event, s) => {
                 setSession(s);
                 setUser(s?.user ?? null);
                 if (s?.user) {
-                    await fetchProfile(s.user.id);
+                    try {
+                        await fetchProfile(s.user.id);
+                    } catch (err) {
+                        console.error('Failed to fetch profile:', err);
+                    }
                 } else {
                     setProfile(null);
                 }
+                // Always resolve loading state on any auth event
                 setLoading(false);
+                clearTimeout(timeout);
             }
         );
 
-        return () => subscription.unsubscribe();
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(timeout);
+        };
     }, [fetchProfile]);
 
     const signUp = async (email: string, password: string, username?: string) => {
