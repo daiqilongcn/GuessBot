@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import type { Tables } from '../lib/types';
@@ -24,37 +24,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchProfile = useCallback(async (userId: string) => {
-        const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-        setProfile(data);
-    }, []);
-
+    // Listen for auth state changes — keep this callback synchronous
+    // (no async DB calls here to avoid Supabase auth lock deadlocks)
     useEffect(() => {
-        // Safety timeout: if loading isn't resolved in 10s, force it
         const timeout = setTimeout(() => {
             setLoading(false);
         }, 10000);
 
-        // Use onAuthStateChange with INITIAL_SESSION event (Supabase recommended pattern)
-        // This avoids the race condition between getSession() and onAuthStateChange()
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, s) => {
+            (_event, s) => {
                 setSession(s);
                 setUser(s?.user ?? null);
-                if (s?.user) {
-                    try {
-                        await fetchProfile(s.user.id);
-                    } catch (err) {
-                        console.error('Failed to fetch profile:', err);
-                    }
-                } else {
+                if (!s?.user) {
                     setProfile(null);
                 }
-                // Always resolve loading state on any auth event
                 setLoading(false);
                 clearTimeout(timeout);
             }
@@ -64,7 +47,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             subscription.unsubscribe();
             clearTimeout(timeout);
         };
-    }, [fetchProfile]);
+    }, []);
+
+    // Fetch profile separately when user changes
+    // This avoids the known issue of making async Supabase data calls
+    // inside onAuthStateChange which can cause silent failures
+    useEffect(() => {
+        if (!user) {
+            setProfile(null);
+            return;
+        }
+
+        let cancelled = false;
+
+        const loadProfile = async () => {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (cancelled) return;
+
+            if (error) {
+                console.error('[useAuth] Failed to fetch profile:', error);
+            }
+
+            setProfile(data);
+        };
+
+        void loadProfile();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [user]);
 
     const signUp = async (email: string, password: string, username?: string) => {
         const { error } = await supabase.auth.signUp({

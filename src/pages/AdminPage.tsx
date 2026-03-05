@@ -61,6 +61,7 @@ export default function AdminPage() {
     const [providers, setProviders] = useState<ProviderWithModels[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddProvider, setShowAddProvider] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [newModelId, setNewModelId] = useState('');
     const [newModelName, setNewModelName] = useState('');
     const [addingModelTo, setAddingModelTo] = useState<string | null>(null);
@@ -129,54 +130,66 @@ export default function AdminPage() {
             return;
         }
 
-        const { data: provider, error } = await supabase
-            .from('providers')
-            .insert({
-                name: newProvider.name,
-                base_url: newProvider.base_url,
-                api_key: newProvider.api_key,
-                api_format: newProvider.api_format,
-            })
-            .select()
-            .single();
+        setSubmitting(true);
+        try {
+            const { data: provider, error } = await supabase
+                .from('providers')
+                .insert({
+                    name: newProvider.name,
+                    base_url: newProvider.base_url,
+                    api_key: newProvider.api_key,
+                    api_format: newProvider.api_format,
+                })
+                .select()
+                .single();
 
-        if (error) {
-            alert(`Failed to add provider: ${error.message}`);
-            return;
-        }
+            if (error) {
+                console.error('[AdminPage] Failed to add provider:', error);
+                alert(`Failed to add provider: ${error.message}`);
+                return;
+            }
 
-        if (provider) {
-            // Collect selected preset models
-            const modelsToInsert: { provider_id: string; model_id: string; display_name: string }[] = [];
-            for (const modelId of selectedPresetModels) {
-                modelsToInsert.push({
-                    provider_id: provider.id,
-                    model_id: modelId,
-                    display_name: modelId,
-                });
-            }
-            // Add custom models
-            for (const cm of customModelsToAdd) {
-                modelsToInsert.push({
-                    provider_id: provider.id,
-                    model_id: cm.model_id,
-                    display_name: cm.display_name || cm.model_id,
-                });
-            }
-            if (modelsToInsert.length > 0) {
-                const { error: modelError } = await supabase.from('models').insert(modelsToInsert);
-                if (modelError) {
-                    alert(`Provider added but failed to add models: ${modelError.message}`);
+
+
+            if (provider) {
+                // Collect selected preset models
+                const modelsToInsert: { provider_id: string; model_id: string; display_name: string }[] = [];
+                for (const modelId of selectedPresetModels) {
+                    modelsToInsert.push({
+                        provider_id: provider.id,
+                        model_id: modelId,
+                        display_name: modelId,
+                    });
+                }
+                // Add custom models
+                for (const cm of customModelsToAdd) {
+                    modelsToInsert.push({
+                        provider_id: provider.id,
+                        model_id: cm.model_id,
+                        display_name: cm.display_name || cm.model_id,
+                    });
+                }
+                if (modelsToInsert.length > 0) {
+                    const { error: modelError } = await supabase.from('models').insert(modelsToInsert);
+                    if (modelError) {
+                        console.error('[AdminPage] Failed to add models:', modelError);
+                        alert(`Provider added but failed to add models: ${modelError.message}`);
+                    }
                 }
             }
-        }
 
-        setShowAddProvider(false);
-        setNewProvider({ name: '', base_url: '', api_key: '', api_format: 'openai' });
-        setSelectedPresetModels(new Set());
-        setCustomModelsToAdd([]);
-        setCustomModelInput('');
-        void fetchProviders();
+            setShowAddProvider(false);
+            setNewProvider({ name: '', base_url: '', api_key: '', api_format: 'openai' });
+            setSelectedPresetModels(new Set());
+            setCustomModelsToAdd([]);
+            setCustomModelInput('');
+            void fetchProviders();
+        } catch (err) {
+            console.error('[AdminPage] Unexpected error in handleAddProvider:', err);
+            alert(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     const handleDeleteProvider = async (id: string) => {
@@ -612,18 +625,22 @@ export default function AdminPage() {
                             </button>
                             <button
                                 onClick={handleAddProvider}
+                                disabled={submitting}
                                 className="flex-1 py-2.5 rounded-xl active:scale-[0.98]"
                                 style={{
                                     fontWeight: 800,
                                     fontSize: '0.85rem',
                                     color: '#fff',
-                                    background: 'linear-gradient(135deg, #a78bfa, #818cf8, #60a5fa)',
+                                    background: submitting
+                                        ? 'linear-gradient(135deg, #c4b5fd, #a5b4fc, #93c5fd)'
+                                        : 'linear-gradient(135deg, #a78bfa, #818cf8, #60a5fa)',
                                     border: 'none',
                                     boxShadow: '0 4px 16px rgba(167,139,250,0.40)',
-                                    cursor: 'pointer',
+                                    cursor: submitting ? 'not-allowed' : 'pointer',
+                                    opacity: submitting ? 0.7 : 1,
                                 }}
                             >
-                                Confirm Add
+                                {submitting ? 'Adding...' : 'Confirm Add'}
                             </button>
                         </div>
                     </div>
