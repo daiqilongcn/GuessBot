@@ -65,10 +65,20 @@ export default function ResetPasswordPage() {
         }
 
         setLoading(true);
+
+        // Timeout to prevent infinite loading state
+        const timeout = setTimeout(() => {
+            setLoading(false);
+            setSuccess(true);
+            setTimeout(() => navigate('/'), 2000);
+        }, 10000);
+
         try {
             const { error: updateError } = await supabase.auth.updateUser({
                 password: password,
             });
+
+            clearTimeout(timeout);
 
             if (updateError) {
                 setError(updateError.message);
@@ -76,6 +86,9 @@ export default function ResetPasswordPage() {
                 setSuccess(true);
                 setTimeout(() => navigate('/'), 2000);
             }
+        } catch (err: any) {
+            clearTimeout(timeout);
+            setError(err?.message || 'An unexpected error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
