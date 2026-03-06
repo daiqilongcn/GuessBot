@@ -81,31 +81,15 @@ export default function BattlePage() {
     }, [initBattle]);
 
     const callAI = async (modelId: string, messages: ChatRequestMessage[]): Promise<string> => {
-        const {
-            data: { session },
-        } = await supabase.auth.getSession();
-        if (!session) throw new Error('Not authenticated');
-
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        if (!supabaseUrl) {
-            throw new Error('Missing VITE_SUPABASE_URL');
-        }
-
-        const response = await fetch(`${supabaseUrl}/functions/v1/chat-proxy`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ model_id: modelId, messages }),
+        const { data, error } = await supabase.functions.invoke('chat-proxy', {
+            body: { model_id: modelId, messages },
         });
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(error);
+        if (error) {
+            const errorText = error.context ? await error.context.text() : '';
+            throw new Error(errorText || error.message || 'Failed to invoke chat-proxy');
         }
 
-        const data = await response.json();
         if (typeof data?.content !== 'string' || data.content.length === 0) {
             throw new Error('Invalid AI response payload');
         }
@@ -165,32 +149,45 @@ export default function BattlePage() {
         }));
 
         try {
-            const [responseA, responseB] = await Promise.all([
-                callAI(modelA.id, historyA),
-                callAI(modelB.id, historyB),
+            const [resultA, resultB] = await Promise.allSettled([
+                callAI(modelA.model_id, historyA),
+                callAI(modelB.model_id, historyB),
             ]);
 
             const responseTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const aiMsgA: Message = {
+            const defaultErrorText = 'Request failed. Please retry later and check provider configuration.';
+
+            const msgA: Message = {
                 id: timestamp + 1,
                 role: 'ai',
-                text: responseA,
-                time: responseTime,
-            };
-            const aiMsgB: Message = {
-                id: timestamp + 2,
-                role: 'ai',
-                text: responseB,
+                text: resultA.status === 'fulfilled' ? resultA.value : defaultErrorText,
                 time: responseTime,
             };
 
-            setMessagesA((prev) => [...prev, aiMsgA]);
-            setMessagesB((prev) => [...prev, aiMsgB]);
+            const msgB: Message = {
+                id: timestamp + 2,
+                role: 'ai',
+                text: resultB.status === 'fulfilled' ? resultB.value : defaultErrorText,
+                time: responseTime,
+            };
+
+            if (resultA.status === 'rejected') {
+                console.error('AI call failed for model A:', resultA.reason);
+            }
+
+            if (resultB.status === 'rejected') {
+                console.error('AI call failed for model B:', resultB.reason);
+            }
+
+            const nextMessagesA = [...newMessagesA, msgA];
+            const nextMessagesB = [...newMessagesB, msgB];
+            setMessagesA(nextMessagesA);
+            setMessagesB(nextMessagesB);
 
             if (currentBattleId) {
                 const allMessages: Json = {
-                    a: serializeMessages([...newMessagesA, aiMsgA]),
-                    b: serializeMessages([...newMessagesB, aiMsgB]),
+                    a: serializeMessages(nextMessagesA),
+                    b: serializeMessages(nextMessagesB),
                 };
                 const { error: updateError } = await supabase
                     .from('battles')
@@ -201,7 +198,7 @@ export default function BattlePage() {
                 }
             }
         } catch (error) {
-            console.error('AI call failed:', error);
+            console.error('Unexpected AI call failure:', error);
             const errorTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const errorText = 'Request failed. Please retry later and check provider configuration.';
             setMessagesA((prev) => [...prev, { id: timestamp + 3, role: 'ai', text: errorText, time: errorTime }]);
