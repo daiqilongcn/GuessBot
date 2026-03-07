@@ -40,6 +40,14 @@ export default function BattlePage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [noModels, setNoModels] = useState(false);
 
+    const hasCompletedRound =
+        messagesA.length > 0 &&
+        messagesB.length > 0 &&
+        messagesA[messagesA.length - 1]?.role === 'ai' &&
+        messagesB[messagesB.length - 1]?.role === 'ai';
+
+    const canVote = Boolean(battleId && user && !voted && !isStreaming && hasCompletedRound);
+
     const initBattle = useCallback(async () => {
         const { data: models, error } = await supabase
             .from('models')
@@ -216,7 +224,7 @@ export default function BattlePage() {
     };
 
     const handleVote = async (vote: 'a' | 'b' | 'tie' | 'both_bad') => {
-        if (!battleId || !user || voted) return;
+        if (!canVote || !battleId || !user) return;
 
         setVoted(vote);
         setVoteLabel(voteLabels[vote]);
@@ -354,6 +362,7 @@ export default function BattlePage() {
                 voted={voted}
                 onNewRound={handleNewRound}
                 disabled={isStreaming}
+                voteDisabled={!canVote}
             />
 
             <div

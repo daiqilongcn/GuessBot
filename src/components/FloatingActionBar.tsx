@@ -6,9 +6,10 @@ interface FloatingActionBarProps {
     voted: string | null;
     onNewRound?: () => void;
     disabled?: boolean;
+    voteDisabled?: boolean;
 }
 
-export function FloatingActionBar({ onSend, onVote, voted, onNewRound, disabled }: FloatingActionBarProps) {
+export function FloatingActionBar({ onSend, onVote, voted, onNewRound, disabled, voteDisabled }: FloatingActionBarProps) {
     const [inputValue, setInputValue] = useState('');
 
     const handleSend = () => {
@@ -165,11 +166,12 @@ export function FloatingActionBar({ onSend, onVote, voted, onNewRound, disabled 
                     <div className="grid grid-cols-4 gap-3">
                         {voteButtons.map((btn) => {
                             const isVoted = voted === btn.key;
+                            const isDisabled = Boolean(voted || voteDisabled);
                             return (
                                 <button
                                     key={btn.key}
-                                    onClick={() => !voted && onVote(btn.key)}
-                                    disabled={!!voted}
+                                    onClick={() => !isDisabled && onVote(btn.key)}
+                                    disabled={isDisabled}
                                     className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl transition-all duration-200 active:scale-95"
                                     style={{
                                         fontFamily: "'Nunito', sans-serif",
@@ -181,12 +183,12 @@ export function FloatingActionBar({ onSend, onVote, voted, onNewRound, disabled 
                                             ? `1.5px solid ${btn.color}`
                                             : '1.5px solid rgba(255,255,255,0.70)',
                                         boxShadow: isVoted ? `0 4px 18px 0 ${btn.color}55` : 'none',
-                                        cursor: voted ? 'default' : 'pointer',
-                                        opacity: voted && !isVoted ? 0.5 : 1,
+                                        cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                        opacity: isDisabled && !isVoted ? 0.5 : 1,
                                         transition: 'all 0.2s ease',
                                     }}
                                     onMouseEnter={(e) => {
-                                        if (!voted && !isVoted) {
+                                        if (!isDisabled && !isVoted) {
                                             const target = e.currentTarget as HTMLButtonElement;
                                             target.style.background = btn.hoverBg;
                                             target.style.transform = 'translateY(-2px)';
@@ -194,7 +196,7 @@ export function FloatingActionBar({ onSend, onVote, voted, onNewRound, disabled 
                                         }
                                     }}
                                     onMouseLeave={(e) => {
-                                        if (!voted && !isVoted) {
+                                        if (!isDisabled && !isVoted) {
                                             const target = e.currentTarget as HTMLButtonElement;
                                             target.style.background = 'rgba(255,255,255,0.48)';
                                             target.style.transform = 'translateY(0px)';
