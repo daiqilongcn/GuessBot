@@ -12,6 +12,13 @@ interface ModelInfo {
     provider_id: string;
 }
 
+interface BattleModelRow extends ModelInfo {
+    providers: {
+        id: string;
+        is_active: boolean;
+    } | null;
+}
+
 interface ChatRequestMessage {
     role: 'user' | 'assistant';
     content: string;
@@ -51,8 +58,9 @@ export default function BattlePage() {
     const initBattle = useCallback(async () => {
         const { data: models, error } = await supabase
             .from('models')
-            .select('id, model_id, display_name, provider_id')
-            .eq('is_active', true);
+            .select('id, model_id, display_name, provider_id, providers!inner(id, is_active)')
+            .eq('is_active', true)
+            .eq('providers.is_active', true);
 
         if (error) {
             console.error('Failed to load models:', error);
@@ -60,13 +68,15 @@ export default function BattlePage() {
             return;
         }
 
-        if (!models || models.length < 2) {
+        const availableModels = ((models ?? []) as BattleModelRow[]).map(({ providers: _providers, ...model }) => model);
+
+        if (availableModels.length < 2) {
             setNoModels(true);
             return;
         }
 
         setNoModels(false);
-        const shuffled = [...models].sort(() => Math.random() - 0.5);
+        const shuffled = [...availableModels].sort(() => Math.random() - 0.5);
         const first = shuffled[0];
         const second = shuffled[1];
 
